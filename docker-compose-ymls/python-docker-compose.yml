@@ -1,0 +1,51 @@
+services:
+  backend:
+    build:
+      context: PATH_TO_DOCKERFILE 
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: backend
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - YOUR_NETWORK
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    stop_grace_period: 35s
+
+  backend-test:
+    build:
+      context: PATH_TO_DOCKERFILE 
+      dockerfile: Dockerfile
+      target: test
+    container_name: backend-test
+    restart: "no"
+    profiles: ["test"]
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - YOUR_NETWORK
+
+networks:
+  YOUR_NETWORK:
+    name: YOUR_NETWORK
+    driver: bridge

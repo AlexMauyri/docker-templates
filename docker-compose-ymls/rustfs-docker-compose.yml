@@ -1,0 +1,66 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.0
+    container_name: rustfs
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_CHECK_UPDATE: "false"
+    command: ["/data", "--console-address", ":9001"]
+    ports:
+      - "${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rustfs_data:/data
+      - rustfs_logs:/logs
+    networks:
+      - YOUR_NETWORK
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/health && curl -f http://localhost:9001/rustfs/console/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  rustfs-init:
+    image: rustfs/rc:latest
+    container_name: rustfs_init
+    restart: "no"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_APP_ACCESS_KEY: ${RUSTFS_APP_ACCESS_KEY}
+      RUSTFS_APP_SECRET_KEY: ${RUSTFS_APP_SECRET_KEY}
+    entrypoint: ["/bin/sh", "/scripts/init.sh"]
+    volumes:
+      - ./infra/rustfs/policies:/policies:ro
+      - ./infra/rustfs/init.sh:/scripts/init.sh:ro
+    networks:
+      - YOUR_NETWORK
+    depends_on:
+      rustfs:
+        condition: service_healthy
+        
+volumes:
+  rustfs_data:
+    name: rustfs_data
+  rustfs_logs:
+    name: rustfs_logs
+
+networks:
+  YOUR_NETWORK:
+    name: YOUR_NETWORK
+    driver: bridge

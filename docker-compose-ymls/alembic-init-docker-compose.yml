@@ -1,0 +1,29 @@
+services:
+  migrate:
+    build:
+      context: PATH_TO_DOCKERFILE
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: alembic_migrate
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_USER: migration_user
+      POSTGRES_PASSWORD: ${MIGRATION_USER_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+    entrypoint: ["alembic", "upgrade", "head"]
+    networks:
+      - YOUR_NETWORK
+
+networks:
+  YOUR_NETWORK:
+    name: YOUR_NETWORK
+    driver: bridge

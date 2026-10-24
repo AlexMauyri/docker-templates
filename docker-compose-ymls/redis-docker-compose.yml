@@ -1,0 +1,45 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /run/redis:rw,nosuid,noexec,size=1m
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      REDIS_APP_USER: ${REDIS_APP_USER}
+      REDIS_APP_PASSWORD: ${REDIS_APP_PASSWORD}
+      REDIS_ADMIN_USER: ${REDIS_ADMIN_USER}
+      REDIS_ADMIN_PASSWORD: ${REDIS_ADMIN_PASSWORD}
+    entrypoint: ["/bin/sh", "/usr/local/bin/redis-entrypoint.sh"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./infra/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./infra/redis/redis-entrypoint.sh:/usr/local/bin/redis-entrypoint.sh:ro
+    networks:
+      - YOUR_NETWORK
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user \"$$REDIS_APP_USER\" -a \"$$REDIS_APP_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  redis_data:
+    name: redis_data
+
+networks:
+  YOUR_NETWORK:
+    name: YOUR_NETWORK
+    driver: bridge
