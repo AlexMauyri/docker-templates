@@ -1,0 +1,51 @@
+services:
+  backend:
+    build:
+      context: PATH_TO_DOCKERFILE
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: backend
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - YOUR_NETWORK
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    stop_grace_period: 35s
+
+  backend-test:
+    build:
+      context: PATH_TO_DOCKERFILE
+      dockerfile: Dockerfile
+      target: test
+    container_name: backend-test
+    restart: "no"
+    profiles: ["test"]
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - YOUR_NETWORK
+
+networks:
+  YOUR_NETWORK:
+    name: YOUR_NETWORK
+    driver: bridge

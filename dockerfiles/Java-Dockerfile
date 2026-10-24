@@ -1,0 +1,77 @@
+# syntax=docker/dockerfile:1
+
+# ============================================================
+# Builder: общая база для сборки через Maven
+# ============================================================
+FROM maven:3.9-eclipse-temurin-21 AS builder-base
+
+WORKDIR /app
+
+# Сначала копируем только метаданные для кеширования зависимостей
+COPY pom.xml .
+
+# Загружаем зависимости (слой кешируется, пока pom.xml не изменился)
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn dependency:go-offline -B
+
+# ============================================================
+# Builder: production-сборка (без тестов)
+# ============================================================
+FROM builder-base AS builder-runtime
+
+COPY src ./src
+
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn clean package -DskipTests -B
+
+# ============================================================
+# Builder: сборка с тестами (для stage test)
+# ============================================================
+FROM builder-base AS builder-test
+
+COPY src ./src
+COPY src/test ./src/test
+
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn clean package -B
+
+# ============================================================
+# Runtime (БАЗОВЫЙ): JRE-образ + исполняемый JAR
+# ============================================================
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+# Non-root пользователь
+RUN addgroup -S app && adduser -S app -G app
+
+WORKDIR /app
+
+COPY --from=builder-runtime /app/target/*.jar ./app.jar
+RUN chown -R app:app /app
+
+USER app
+
+# JVM-флаги, дружественные к контейнерам
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+               -XX:MaxRAMPercentage=75.0 \
+               -XX:+ExitOnOutOfMemoryError \
+               -XX:+UseG1GC"
+
+EXPOSE 8080
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+
+# ============================================================
+# Test: образ с зависимостями для тестов
+# ============================================================
+FROM builder-test AS test
+
+WORKDIR /app
+
+USER root
+# Убедимся, что пользователь app существует (для консистентности)
+RUN addgroup -S app 2>/dev/null || true && adduser -S app -G app 2>/dev/null || true
+
+USER app
+
+ENTRYPOINT ["mvn", "test"]
+CMD ["-B"]
